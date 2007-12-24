@@ -31,7 +31,7 @@ import org.freedesktop.dbus.exceptions.NotConnected;
 
 import cx.ath.matthew.debug.Debug;
 
-class RemoteInvocationHandler implements InvocationHandler
+public class RemoteInvocationHandler implements InvocationHandler
 {
    public static final int CALL_TYPE_SYNC = 0;
    public static final int CALL_TYPE_ASYNC = 1;

@@ -10,7 +10,7 @@
 */
 package org.freedesktop.dbus;
 
-class RemoteObject
+public class RemoteObject
 {
    String busname;
    String objectpath;

@@ -13,7 +13,6 @@ package org.freedesktop.dbus;
 import static org.freedesktop.dbus.Gettext._;
 
 import java.lang.ref.WeakReference;
-import java.lang.reflect.Proxy;
 import java.io.File;
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -132,9 +131,7 @@ public class DirectConnection extends AbstractConnection
 
          RemoteObject ro = new RemoteObject(null, path, null, false);
          DBusInterface newi =  (DBusInterface)
-            Proxy.newProxyInstance(ifcs.get(0).getClassLoader(), 
-                                   ifcs.toArray(new Class[0]),
-                                   new RemoteInvocationHandler(this, ro));
+            DBusProxy.getProxy(ifcs.toArray(new Class[0]), this, ro);
          importedObjects.put(newi, ro);
          return newi;
       } catch (Exception e) {
@@ -213,8 +210,8 @@ public class DirectConnection extends AbstractConnection
          throw new DBusException(_("DBusInterfaces cannot be declared outside a package"));
       
       RemoteObject ro = new RemoteObject(null, objectpath, type, false);
-      DBusInterface i =  (DBusInterface) Proxy.newProxyInstance(type.getClassLoader(), 
-            new Class[] { type }, new RemoteInvocationHandler(this, ro));
+      DBusInterface i =  (DBusInterface) 
+         DBusProxy.getProxy(new Class[] { type }, this, ro);
       importedObjects.put(i, ro);
       return i;
    }
