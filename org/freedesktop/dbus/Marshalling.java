@@ -352,8 +352,9 @@ public class Marshalling
    public static Object[] convertParameters(Object[] parameters, Type[] types, AbstractConnection conn) throws DBusException
    {
       if (null == parameters) return null;
+         if (Debug.debug) Debug.print(Debug.DEBUG,"Converting from "+Arrays.deepToString(parameters)+" to "+Arrays.deepToString(types));
       for (int i = 0; i < parameters.length; i++) {
-         if (Debug.debug) Debug.print(Debug.VERBOSE,"Converting "+i+" from "+parameters[i]+" to "+types[i]);
+         if (Debug.debug && i < types.length) Debug.print(Debug.VERBOSE,"Converting "+i+" from "+parameters[i]+" to "+types[i]);
          if (null == parameters[i]) continue;
 
          if (parameters[i] instanceof DBusSerializable) {

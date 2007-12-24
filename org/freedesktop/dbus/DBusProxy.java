@@ -54,6 +54,7 @@ public class DBusProxy
       if (c.equals("char")) return "Char";
       return c;
    }
+   @SuppressWarnings("unchecked")
    public static Object getProxy(Class[] types, AbstractConnection conn, RemoteObject ro) throws DBusException
    {
       if (Debug.debug) Debug.print(Debug.DEBUG, "Creating proxy type: "+Arrays.deepToString(types)+" connection: "+conn+" Details: "+ro);
@@ -73,6 +74,8 @@ public class DBusProxy
          // required imports
          out.println("import org.freedesktop.dbus.*;");
          out.println("import org.freedesktop.dbus.exceptions.*;");
+         if (Debug.debug)
+            out.println("import cx.ath.matthew.debug.Debug;");
          for (Class c: types) {
             out.print("import ");
             out.print(AbstractConnection.dollar_pattern.matcher(c.getName()).replaceAll("."));
@@ -81,7 +84,7 @@ public class DBusProxy
             for (Method m: c.getDeclaredMethods()) {
                methods.add(m);
                if(null != m.getReturnType() && !Void.TYPE.equals(m.getReturnType())) 
-                  out.print(getImport(m.getReturnType()));
+                  out.println(getImport(m.getReturnType()));
                for (Class p: m.getParameterTypes()) 
                   out.println(getImport(p));
             }
@@ -140,10 +143,10 @@ public class DBusProxy
             out.println(") {");
 
             // invoke using proxy for now
+            out.println("java.lang.reflect.Method meth = null;");
+            out.println("for (Class cl:getClass().getInterfaces()) {");
             out.println("try {");
-            out.print("java.lang.reflect.Method meth = ");
-            out.print(classname);
-            out.print(".class.getMethod(\"");
+            out.print("meth = cl.getMethod(\"");
             out.print(m.getName());
             out.print('"');
             for (Class c: m.getParameterTypes()) {
@@ -152,9 +155,12 @@ public class DBusProxy
                out.print(".class");
             }
             out.println(");");
+            out.println("break;");
+            out.println("} catch (NoSuchMethodException NSMe) {}");
+            out.println('}');
             out.print("Object rv = RemoteInvocationHandler.executeRemoteMethod(ro, meth, conn, RemoteInvocationHandler.CALL_TYPE_SYNC, null");
             for (char q = 'a'; q < n; q++) {
-               out.print(',');
+               out.print(",(Object)");
                out.print(q);
             }
             out.println(");");
@@ -165,16 +171,13 @@ public class DBusProxy
                out.print(boxed(m.getReturnType().getSimpleName()));
                out.println(") rv;");
             }
-            out.println("} catch (Exception e) {");
-            out.println("throw new DBusExecutionException(e.toString());");
-            out.println('}');
             out.println('}');
          }
          out.println('}');
 
          // compile and instantiate
          try {
-         return gen.loadClasses()[0].getConstructor(AbstractConnection.class, RemoteObject.class).newInstance(conn, ro);
+            return gen.loadClasses()[0].getConstructor(AbstractConnection.class, RemoteObject.class).newInstance(conn, ro);
          } catch (Exception e) {
             if (AbstractConnection.EXCEPTION_DEBUG && Debug.debug)
                Debug.print(e);

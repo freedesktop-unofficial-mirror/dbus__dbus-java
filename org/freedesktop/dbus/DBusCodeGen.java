@@ -38,6 +38,7 @@ public class DBusCodeGen<T>
    private static ClassLoader localLoader;
    private static String classpath;
    private static String[] bootargs;
+   private static PrintWriter out;
    static {
       try {
          boolean a = AbstractConnection.EXCEPTION_DEBUG;
@@ -50,6 +51,14 @@ public class DBusCodeGen<T>
          tempdir.deleteOnExit();
          if (Debug.debug) Debug.print(Debug.VERBOSE, "Schedule delete: "+tempdir);
          classpath = tempdir.getPath()+":"+System.getProperty("java.class.path");
+
+         if (Debug.debug) out = new PrintWriter(System.err);
+         else {
+            File f = new File(tempdir, "compile.log");
+            f.deleteOnExit();
+            out = new PrintWriter(new FileOutputStream(f));
+         }
+
          bootargs = new String[4];
          bootargs[0] = "-classpath";
          bootargs[1] = classpath;
@@ -131,7 +140,7 @@ public class DBusCodeGen<T>
       }
       try {
          if (Debug.debug) Debug.print(Debug.DEBUG, "Main.compile("+Arrays.deepToString(args)+")");
-         int errorCode = Main.compile(args);
+         int errorCode = Main.compile(args, out);
          if (0 != errorCode) throw new Exception("errorCode="+errorCode);
       } catch (Exception e) {
          if (AbstractConnection.EXCEPTION_DEBUG && Debug.debug) Debug.print(e);
