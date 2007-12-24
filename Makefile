@@ -15,6 +15,11 @@ JAVADOC?=javadoc
 JAR?=jar
 MAKE?=make
 MSGFMT?=msgfmt
+ifdef JAVA_HOME
+TOOLS?=${JAVA_HOME}/lib/tools.jar
+else
+TOOLS?=/usr/lib/jvm/java-gcj/lib/tools.jar
+endif
 
 # Program parameters
 CPFLAG?=-classpath
@@ -40,6 +45,8 @@ JAVAUNIXLIBDIR?=/usr/lib/jni
 JAVAUNIXJARDIR?=/usr/share/java
 DEBUG=disable
 
+JDBUS_CLASSPATH=classes:${TOOLS}:${JAVAUNIXJARDIR}/debug-$(DEBUG).jar:${JAVAUNIXJARDIR}/hexdump.jar:${JAVAUNIXJARDIR}/unix.jar:$(CLASSPATH)
+
 # Version numbering
 VERSION = $(shell sed -n '1s/.* \(.*\):/\1/p' changelog)
 RELEASEVERSION = $(shell sed -n '/^Version/s/.* \(.*\):/\1/p' changelog | sed -n '2p')
@@ -60,19 +67,19 @@ viewerclasses: .viewerclasses
 binclasses: .binclasses
 .testclasses: $(SRCDIR)/dbus/test/*.java .classes
 	mkdir -p classes
-	$(JAVAC) -cp classes:${JAVAUNIXJARDIR}/debug-$(DEBUG).jar:${JAVAUNIXJARDIR}/hexdump.jar:$(CLASSPATH) -d classes $(JCFLAGS) $(SRCDIR)/dbus/test/*.java
+	$(JAVAC) -cp ${JDBUS_CLASSPATH} -d classes $(JCFLAGS) $(SRCDIR)/dbus/test/*.java
 	touch .testclasses 
 .viewerclasses: $(SRCDIR)/dbus/viewer/*.java .classes .binclasses
 	mkdir -p classes
-	$(JAVAC) -cp classes:$(CLASSPATH):${JAVAUNIXJARDIR}/unix.jar:${JAVAUNIXJARDIR}/debug-$(DEBUG).jar:${JAVAUNIXJARDIR}/hexdump.jar -d classes $(JCFLAGS) $(SRCDIR)/dbus/viewer/*.java
+	$(JAVAC) -cp ${JDBUS_CLASSPATH} -d classes $(JCFLAGS) $(SRCDIR)/dbus/viewer/*.java
 	touch .viewerclasses 
 .binclasses: $(SRCDIR)/dbus/bin/*.java .classes
 	mkdir -p classes
-	$(JAVAC) -cp classes:$(CLASSPATH):${JAVAUNIXJARDIR}/unix.jar:${JAVAUNIXJARDIR}/debug-$(DEBUG).jar:${JAVAUNIXJARDIR}/hexdump.jar -d classes $(JCFLAGS) $(SRCDIR)/dbus/bin/*.java
+	$(JAVAC) -cp ${JDBUS_CLASSPATH} -d classes $(JCFLAGS) $(SRCDIR)/dbus/bin/*.java
 	touch .binclasses 
 .classes: $(SRCDIR)/*.java $(SRCDIR)/dbus/*.java $(SRCDIR)/dbus/exceptions/*.java $(SRCDIR)/dbus/types/*.java translations/*.po
 	mkdir -p classes
-	$(JAVAC) -d classes -cp classes:${JAVAUNIXJARDIR}/unix.jar:${JAVAUNIXJARDIR}/debug-$(DEBUG).jar:${JAVAUNIXJARDIR}/hexdump.jar:$(CLASSPATH) $(JCFLAGS) $(SRCDIR)/*.java $(SRCDIR)/dbus/*.java $(SRCDIR)/dbus/exceptions/*.java $(SRCDIR)/dbus/types/*.java
+	$(JAVAC) -d classes -cp ${JDBUS_CLASSPATH} $(JCFLAGS) $(SRCDIR)/*.java $(SRCDIR)/dbus/*.java $(SRCDIR)/dbus/exceptions/*.java $(SRCDIR)/dbus/types/*.java
 	(cd translations; for i in *.po; do $(MSGFMT) --java2 -r dbusjava_localized -d ../classes -l $${i%.po} $$i; done)
 	$(MSGFMT) --java2 -r dbusjava_localized -d classes translations/en_GB.po
 	touch .classes
