@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Vector;
 
 import cx.ath.matthew.debug.Debug;
+import cx.ath.matthew.utils.Hexdump;
 
 import org.freedesktop.dbus.exceptions.DBusException;
 
@@ -172,9 +173,19 @@ public class DBusProxy
                      bsize += 8;
                }
                // - calculate signature
+               //END
+               String sig = Marshalling.getDBusType(m.getParameterTypes());
+               out.print("byte[] headers = new byte[] { ");
+               byte[] bsizes = new byte[4];
+               Message.marshallintBig(bsize, bsizes, 0, 4);
+               out.print(Hexdump.toByteArray(bsizes));
+               out.print(",0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,");
+               Message.marshallintBig(Message.HeaderField.PATH, bsizes, 0, 4);
+               out.print(Hexdump.toByteArray(bsizes));
                // - calculate header size
-               //   - ua(yv)
+               //   - uua(yv)
                //     - u = body length
+               //     - u = serial
                //     - a(yv) = 
                //       { ( PATH, [ OBJECT_PATH, ro.path ] ),
                //         ( DESTINATION, [ STRING, ro.dest ] ),
@@ -182,10 +193,15 @@ public class DBusProxy
                //         ( MEMBER, [ STRING, m.getName() ] ) 
                //         ( SIGNATURE, [ SIGNATURE, sig ] ) }
                // - create literal headers (sans serial)
+               out.println("};");
+               //<<END
                // - insert serial
+               Message.marshallintBig(m.getSerial(),headers, 4, 4);
+               Message.marshallintBig(harrlen,headers, 8, 4);
                // - create body
                byte[] body = new byte[bsize];
                bytes[1] = body;
+               bytes[2] = headers;
                // - insert body
                int ofs = 0;
                //END
@@ -220,10 +236,10 @@ public class DBusProxy
                if (!m.isAnnotationPresent(DBus.Method.NoReply.class)) {
                   out.println("Message reply = call.getReply();");
                   out.println("if (null == reply) throw new DBus.Error.NoReply(_("No reply within specified time"));");
-out.println("");
+                  out.println("");
                   out.println("if (reply instanceof Error)");
-                     out.println("((Error) reply).throwException();");
-out.println("");
+                  out.println("((Error) reply).throwException();");
+                  out.println("");
                   out.println("byte[] body = reply.getBody();");
                   if (m.getReturnType().equals(Integer.TYPE)
                         || m.getReturnType().equals(Short.TYPE)
