@@ -89,6 +89,7 @@ public class DBusProxy
                   out.println(getImport(p));
             }
          }
+         out.println();
 
          // implements the list of interfaces
          out.print("public class ");
@@ -99,10 +100,12 @@ public class DBusProxy
             out.print(',');
          }
          out.println("DBusInterface {");
+         out.println();
 
          // local variables
          out.println("private AbstractConnection conn;");
          out.println("private RemoteObject ro;");
+         out.println();
 
          // constructor
          out.print("public ");
@@ -114,16 +117,21 @@ public class DBusProxy
          out.print("public String toString() { return \"");
          out.print(ro.toString());
          out.println("\"; }");
+         out.println();
 
          // iterate over methods
          for (Method m: methods) {
             out.print("public ");
 
+            boolean prim = true;
+
             // return type
             if (null == m.getReturnType())
                out.print("void");
-            else
+            else {
                out.print(m.getReturnType().getSimpleName());
+               prim &= m.getReturnType().isPrimitive();
+            }
             out.print(' ');
 
             // method name
@@ -139,39 +147,135 @@ public class DBusProxy
                out.print(n);
                if ((i + 1) != cs.length)
                   out.print(',');
+               prim &= cs[i].isPrimitive();
             }
             out.println(") {");
 
-            // invoke using proxy for now
-            out.println("java.lang.reflect.Method meth = null;");
-            out.println("for (Class cl:getClass().getInterfaces()) {");
-            out.println("try {");
-            out.print("meth = cl.getMethod(\"");
-            out.print(m.getName());
-            out.print('"');
-            for (Class c: m.getParameterTypes()) {
-               out.print(',');
-               out.print(c.getSimpleName());
-               out.print(".class");
+            // all arguments are primative, can do it more efficiently
+            if (prim) {
+               //<<END
+               Message m = new Message(Message.Endian.BIG, Message.MessageType.METHOD_CALL, 0);
+               byte[][] bytes = new byte[2][];
+               //TODO: create bytes
+               // - calculate body size
+               int bsize = 0;
+               for (Class c: m.getParameterTypes()) {
+                  if (c.equals(Byte.TYPE))
+                     bsize += 1;
+                  else if (c.equals(Short.TYPE))
+                     bsize += 2;
+                  else if (c.equals(Boolean.TYPE)||
+                        c.equals(Integer.TYPE)||
+                        c.equals(Float.TYPE))
+                     bsize += 4;
+                  else
+                     bsize += 8;
+               }
+               // - calculate signature
+               // - calculate header size
+               //   - ua(yv)
+               //     - u = body length
+               //     - a(yv) = 
+               //       { ( PATH, [ OBJECT_PATH, ro.path ] ),
+               //         ( DESTINATION, [ STRING, ro.dest ] ),
+               //         ( INTERFACE, [ STRING, ro.iface ] ),
+               //         ( MEMBER, [ STRING, m.getName() ] ) 
+               //         ( SIGNATURE, [ SIGNATURE, sig ] ) }
+               // - create literal headers (sans serial)
+               // - insert serial
+               // - create body
+               byte[] body = new byte[bsize];
+               bytes[1] = body;
+               // - insert body
+               int ofs = 0;
+               //END
+               char ch = 'a';
+               //<<END
+               for (Class c: m.getParameterTypes()) {
+                  if (c.equals(Byte.TYPE))
+                     body[ofs++] = "+(ch++)+";
+                  else if (c.equals(Short.TYPE)) {
+                     marshallintBig("+(ch++)+", body, ofs, 2);
+                     ofs += 2;
+                  } else if (c.equals(Integer.TYPE)) {
+                     marshallintBig("+(ch++)+", body, ofs, 4);
+                     ofs += 4;
+                  } else if (c.equals(Long.TYPE)) {
+                     marshallintBig("+(ch++)+", body, ofs, 8);
+                     ofs += 8;
+                  } else if (c.equals(Boolean.TYPE)) {
+                     marshallintBig("+(ch++)+"?1:0, body, ofs, 4);
+                     ofs += 4;
+                  } else if (c.equals(Float.TYPE)) {
+                     marshallintBig(Float.floatToIntBits("+(ch++)+"), body, ofs, 4);
+                     ofs += 4;
+                  } else if (c.equals(Double.TYPE)) {
+                     marshallintBig(Double.doubleToLongBits("+(ch++)+"), body, ofs, 8);
+                     ofs += 8;
+                  }
+               }
+               m.addPayload(bytes);
+               conn.queueOutgoing(call);
+               //END
+               if (!m.isAnnotationPresent(DBus.Method.NoReply.class)) {
+                  out.println("Message reply = call.getReply();");
+                  out.println("if (null == reply) throw new DBus.Error.NoReply(_("No reply within specified time"));");
+out.println("");
+                  out.println("if (reply instanceof Error)");
+                     out.println("((Error) reply).throwException();");
+out.println("");
+                  out.println("byte[] body = reply.getBody();");
+                  if (m.getReturnType().equals(Integer.TYPE)
+                        || m.getReturnType().equals(Short.TYPE)
+                        || m.getReturnType().equals(Long.TYPE))
+                     out.println("return Message.demarshallint(body, 0, reply.getEndianness(), body.length);");
+                  } else if (m.getReturnType().equals(Double.TYPE)) {
+                     out.println("return Double.longBitsToDouble(Message.demarshallint(body, 0, reply.getEndianness(), 8));");
+                  } else if (m.getReturnType().equals(Float.TYPE)) {
+                     out.println("return Float.intBitsToFloat(Message.demarshallint(body, 0, reply.getEndianness(), 4));");
+                  } else if (m.getReturnType().equals(Byte.TYPE)) {
+                     out.println("return body[0];");
+                  } else if (m.getReturnType().equals(Boolean.TYPE)) {
+                     out.println("return 1 == Message.demarshallint(body, 0, reply.getEndianness(), body.length);");
+                  }
+               }
             }
-            out.println(");");
-            out.println("break;");
-            out.println("} catch (NoSuchMethodException NSMe) {}");
-            out.println('}');
-            out.print("Object rv = RemoteInvocationHandler.executeRemoteMethod(ro, meth, conn, RemoteInvocationHandler.CALL_TYPE_SYNC, null");
-            for (char q = 'a'; q < n; q++) {
-               out.print(",(Object)");
-               out.print(q);
-            }
-            out.println(");");
 
-            // check if we need to return a value
-            if(null != m.getReturnType() && !Void.TYPE.equals(m.getReturnType())) {
-               out.print("return (");
-               out.print(boxed(m.getReturnType().getSimpleName()));
-               out.println(") rv;");
+            // all other cases
+            else {
+
+               // invoke using proxy for now
+               out.println("java.lang.reflect.Method meth = null;");
+               out.println("for (Class cl:getClass().getInterfaces()) {");
+               out.println("try {");
+               out.print("meth = cl.getMethod(\"");
+               out.print(m.getName());
+               out.print('"');
+               for (Class c: m.getParameterTypes()) {
+                  out.print(',');
+                  out.print(c.getSimpleName());
+                  out.print(".class");
+               }
+               out.println(");");
+               out.println("break;");
+               out.println("} catch (NoSuchMethodException NSMe) {}");
+               out.println('}');
+               out.print("Object rv = RemoteInvocationHandler.executeRemoteMethod(ro, meth, conn, RemoteInvocationHandler.CALL_TYPE_SYNC, null");
+               for (char q = 'a'; q < n; q++) {
+                  out.print(",(Object)");
+                  out.print(q);
+               }
+               out.println(");");
+
+               // check if we need to return a value
+               if(null != m.getReturnType() && !Void.TYPE.equals(m.getReturnType())) {
+                  out.print("return (");
+                  out.print(boxed(m.getReturnType().getSimpleName()));
+                  out.println(") rv;");
+               }
             }
             out.println('}');
+            out.println();
          }
          out.println('}');
 

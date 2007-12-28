@@ -193,6 +193,17 @@ public class Message
       headers = new HashMap<Byte, Object>();
       bytecounter = 0;
    }
+   public void addPayload(byte[][] bytes)
+   {
+      if (bufferuse+bytes.length >= wiredata.length) {
+         if (Debug.debug) Debug.print(Debug.VERBOSE, "Resizing "+bufferuse);
+         byte[][] temp = new byte[wiredata.length+BUFFERINCREMENT*((bytes.length-wiredata.length)/BUFFERINCREMENT+1)][];
+         System.arraycopy(wiredata, 0, temp, 0, wiredata.length);
+         wiredata = temp;
+      }
+      System.arraycopy(bytes, 0, wiredata, bufferuse, bytes.length);
+      bufferuse += bytes.length;
+   }
    /**
     * Create a message from wire-format data.
     * @param msg D-Bus serialized data of type yyyuu
@@ -246,9 +257,9 @@ public class Message
          paofs += buf.length;
          preallocated -= buf.length;
       } else {
-         if (bufferuse == wiredata.length) {
+         if (bufferuse >= wiredata.length) {
             if (Debug.debug) Debug.print(Debug.VERBOSE, "Resizing "+bufferuse);
-            byte[][] temp = new byte[wiredata.length+BUFFERINCREMENT][];
+            byte[][] temp = new byte[bufferuse+BUFFERINCREMENT][];
             System.arraycopy(wiredata, 0, temp, 0, wiredata.length);
             wiredata = temp;
          }
@@ -265,9 +276,9 @@ public class Message
          pabuf[paofs++] = b;
          preallocated--;
       } else {
-         if (bufferuse == wiredata.length) {
+         if (bufferuse >= wiredata.length) {
             if (Debug.debug) Debug.print(Debug.VERBOSE, "Resizing "+bufferuse);
-            byte[][] temp = new byte[wiredata.length+BUFFERINCREMENT][];
+            byte[][] temp = new byte[bufferuse+BUFFERINCREMENT][];
             System.arraycopy(wiredata, 0, temp, 0, wiredata.length);
             wiredata = temp;
          }
@@ -380,6 +391,7 @@ public class Message
    {
       return wiredata;
    }
+   public boolean getEndianness() { return big; }
    /**
     * Formats the message in a human-readable format.
     */
@@ -1070,6 +1082,11 @@ public class Message
       if (null == l) return 0;
       return l.longValue();
    }
+   /**
+    * Return the byte array corresponding to the body of the message.
+    * @return Message body.
+    */
+   public byte[] getBody() { return body; }
    /**
     * Parses and returns the parameters to this message as an Object array.
     */
